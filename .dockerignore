@@ -1,0 +1,8 @@
+# Ignore Node.js modules, as they will be installed inside the container
+node_modules
+
+# Ignore local environment files, as configuration will be passed in by Docker Compose
+.env.local
+
+# Ignore npm debug logs
+npm-debug.log

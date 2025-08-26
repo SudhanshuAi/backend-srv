@@ -1,0 +1,42 @@
+services:
+  # 1. Define the dedicated Redis service for this worker
+  redis:
+    image: redis:7.2-bookworm
+    container_name: nb-monitor-redis # Give it a unique name
+    restart: always
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - nb-monitor-network
+
+  # 2. Define the worker service
+  nb-monitor-worker:
+    build: .
+    container_name: nb-monitor-worker
+    restart: always
+    # This now correctly loads the .env file from the project root
+    env_file:
+      - ../../.env
+    
+    # These variables are for this service's specific configuration
+    environment:
+      # This points to the 'redis' service defined right here in this file
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    
+    # This ensures the worker waits for its own Redis to be healthy before starting
+    depends_on:
+      redis:
+        condition: service_healthy
+    
+    # Connect the worker to the same private network as its Redis
+    networks:
+      - nb-monitor-network
+
+# 3. Define the new private network for this stack
+networks:
+  nb-monitor-network:
+    name: nb-monitor-network
