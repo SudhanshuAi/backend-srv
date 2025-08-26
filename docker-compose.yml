@@ -1,8 +1,8 @@
 services:
-  # 1. Define the dedicated Redis service for this worker
+  # 1. The Redis service (unchanged)
   redis:
     image: redis:7.2-bookworm
-    container_name: nb-monitor-redis # Give it a unique name
+    container_name: nb-monitor-redis
     restart: always
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -12,31 +12,44 @@ services:
     networks:
       - nb-monitor-network
 
-  # 2. Define the worker service
-  nb-monitor-worker:
+  # 2. The NEW API Server Service
+  api-server:
     build: .
-    container_name: nb-monitor-worker
+    container_name: nb-monitor-api
     restart: always
-    # This now correctly loads the .env file from the project root
+    command: node api-server.js # <-- Overrides the Dockerfile's default CMD
+    ports:
+      - "5003:3000" # <-- This is your PUBLIC endpoint for the frontend
     env_file:
-      - ../../.env
-    
-    # These variables are for this service's specific configuration
+      - ../../.env.local
     environment:
-      # This points to the 'redis' service defined right here in this file
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-    
-    # This ensures the worker waits for its own Redis to be healthy before starting
+      - PORT=3000
     depends_on:
       redis:
         condition: service_healthy
-    
-    # Connect the worker to the same private network as its Redis
     networks:
       - nb-monitor-network
 
-# 3. Define the new private network for this stack
+  # 3. The Worker Service (updated)
+  worker:
+    build: . # It can use the same image as the API server
+    container_name: nb-monitor-worker
+    restart: always
+    command: node sql-worker.js # <-- Explicitly tells it to run the worker script
+    env_file:
+      - ../../.env.local
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - nb-monitor-network
+
+# The private network (unchanged)
 networks:
   nb-monitor-network:
     name: nb-monitor-network
